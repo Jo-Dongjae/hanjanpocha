@@ -113,7 +113,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .face.front .big { font-family: var(--display); font-size: 64px; color: var(--accent); line-height: 1; }
 .face.front .hint { color: var(--muted); font-size: 14px; }
-.face.rear { background: var(--surface); color: var(--surface-ink); transform: rotateY(180deg); gap: 14px; }
+.face.rear { background: var(--surface); color: var(--surface-ink); transform: rotateY(180deg); gap: 14px; overflow-y: auto; }
 .tag { align-self: flex-start; font-size: 12px; font-weight: 700; letter-spacing: .08em; padding: 5px 10px; border-radius: 8px; background: var(--surface-ink); color: var(--surface); }
 .qtext { font-size: clamp(22px, 6.4vw, 28px); font-weight: 900; line-height: 1.4; word-break: keep-all; overflow-wrap: anywhere; flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; }
 .vs { display: grid; gap: 10px; flex: 1; align-content: center; }
@@ -145,7 +145,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .hints li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; background: #e4ddc8; border-radius: 14px; padding: 12px 14px; font-weight: 700; font-size: 17px; word-break: keep-all; animation: pop .35s ease; }
 .hints li span { font-family: var(--display); color: var(--accent); font-weight: 400; font-size: 18px; }
 .hints li.locked { background: transparent; border: 2px dashed #c9c1aa; color: #8c8672; font-weight: 500; animation: none; }
-.photo { position: relative; border-radius: 18px; overflow: hidden; aspect-ratio: 1 / 1; max-width: 100%; background: #d6cfb8; }
+.photo { position: relative; border-radius: 18px; overflow: hidden; aspect-ratio: 1 / 1; max-width: 100%; max-height: 42vh; background: #d6cfb8; flex: none; }
 .photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter .6s ease, transform .6s ease; }
 .answer { text-align: center; padding: 10px 0 4px; animation: pop .4s ease; }
 .answer small { display: block; color: #6b6656; font-size: 13px; }
@@ -518,9 +518,22 @@ function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e
 let timerId = null;
 function stopTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
 
+/* 안드로이드 뒤로가기 버튼: 앱이 꺼지지 않고 이전 화면으로 */
+function enterSub() { try { if (!history.state) history.pushState({ sub: 1 }, ""); } catch (e) {} }
+window.addEventListener("popstate", () => { const b = document.getElementById("back"); if (b) b.click(); });
+
+/* 게임 중 화면이 꺼지지 않게 */
+let wakeLock = null;
+async function keepAwake() {
+  try { if ("wakeLock" in navigator && !wakeLock && document.visibilityState === "visible") { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; }); } } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") keepAwake(); });
+document.addEventListener("pointerdown", keepAwake, { once: true });
+
 /* ---------- home ---------- */
 function home() {
   stopTimer();
+  try { if (history.state) history.back(); } catch (e) {}
   $app.innerHTML = `
     <header class="brand">
       <div class="eyebrow">폰 하나로 돌리는 술게임</div>
@@ -551,7 +564,7 @@ function buildPile() {
   cardState.pile = shuffle(all); cardState.idx = 0;
 }
 function cardsView() {
-  stopTimer();
+  stopTimer(); enterSub();
   buildPile();
   $app.innerHTML = `
     <div class="bar"><button class="back" id="back" aria-label="처음으로">←</button><h2>질문 카드</h2><span class="pill" id="count"></span></div>
@@ -578,7 +591,7 @@ function cardsView() {
   const flip = () => { card.classList.toggle("flipped"); buzz(15); };
   card.onclick = flip;
   card.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } };
-  document.getElementById("next").onclick = () => { cardState.idx = (cardState.idx + 1) % cardState.pile.length; if (cardState.idx === 0) { cardState.pile = shuffle(cardState.pile); toast("카드를 다시 섞었어요"); } renderCard(true); };
+  document.getElementById("next").onclick = () => { if (!card.classList.contains("flipped")) { flip(); return; } cardState.idx = (cardState.idx + 1) % cardState.pile.length; if (cardState.idx === 0) { cardState.pile = shuffle(cardState.pile); toast("카드를 다시 섞었어요"); } renderCard(true); };
   document.getElementById("prev").onclick = () => { cardState.idx = (cardState.idx - 1 + cardState.pile.length) % cardState.pile.length; renderCard(true); };
   document.getElementById("addQ").onclick = addQuestionView;
   renderCard(false);
@@ -602,6 +615,7 @@ function renderCard(animate) {
   } else { fill(); if (animate) card.classList.add("flipped"); }
 }
 function addQuestionView() {
+  enterSub();
   let deck = "pick";
   const draw = () => {
     $app.innerHTML = `
@@ -633,7 +647,7 @@ function addQuestionView() {
       }
       store.set("hp_customQs", customQs); toast("질문을 추가했어요"); draw();
     };
-    $app.querySelectorAll(".x").forEach(b => b.onclick = () => { customQs.splice(+b.dataset.i, 1); store.set("hp_customQs", customQs); draw(); });
+    $app.querySelectorAll(".x").forEach(b => b.onclick = () => { if (!confirm("이 질문을 삭제할까요?")) return; customQs.splice(+b.dataset.i, 1); store.set("hp_customQs", customQs); draw(); });
   };
   draw();
 }
@@ -641,7 +655,7 @@ function addQuestionView() {
 /* ---------- person quiz ---------- */
 let quiz = { source: "famous", seconds: 20, count: 20, cats: new Set(Object.keys(CATS)), list: [], idx: 0, shown: 1, revealed: false, left: 0, right: 0, missed: 0 };
 function quizSetup() {
-  stopTimer();
+  stopTimer(); enterSub();
   const famous = quiz.source === "famous";
   const pool = FAMOUS.filter(f => quiz.cats.has(f[0])).length;
   $app.innerHTML = `
@@ -708,7 +722,7 @@ function quizRound() {
     <div class="quizbox">
       <div class="quizhead">
         <span class="tag">${p.cat ? esc(CATS[p.cat]) + " · " : ""}누구일까요?</span>
-        <div class="timer" id="timer"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="${R}" fill="none" stroke="#d6cfb8" stroke-width="6"/><circle id="ring" cx="32" cy="32" r="${R}" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="0"/></svg><div class="t" id="tnum">${quiz.left}</div></div>
+        <div class="timer" id="timer"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="${R}" fill="none" stroke="#d6cfb8" stroke-width="6"/><circle id="ring" cx="32" cy="32" r="${R}" fill="none" style="stroke:var(--accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="0"/></svg><div class="t" id="tnum">${quiz.left}</div></div>
       </div>
       ${hasPhoto ? `<div class="photo"><img id="pimg" src="${p.photo}" alt="퀴즈 사진"></div>` : ""}
       <ul class="hints" id="hints"></ul>
@@ -765,7 +779,7 @@ function nextQ() {
       <div class="bar"><button class="back" id="back" aria-label="처음으로">←</button><h2>인물 퀴즈 끝</h2></div>
       <div class="quizbox" style="justify-content:center;text-align:center">
         <div class="answer"><small>맞힌 문제</small><strong>${quiz.right} / ${quiz.list.length}</strong></div>
-        <div class="penalty">못 맞힌 문제 ${quiz.missed}개 · 모두 ${quiz.missed}잔 원샷?</div>
+        <div class="penalty">${quiz.missed ? `못 맞힌 문제 ${quiz.missed}개 · 모두 ${quiz.missed}잔 원샷?` : "하나도 안 놓쳤어요! 다 같이 건배 🥂"}</div>
       </div>
       <button class="btn primary" id="again">다시 하기</button>`;
     document.getElementById("back").onclick = home;
@@ -793,7 +807,7 @@ function resizeImage(file) {
   });
 }
 function peopleView() {
-  stopTimer();
+  stopTimer(); enterSub();
   let photo = null;
   $app.innerHTML = `
     <div class="bar"><button class="back" id="back" aria-label="퀴즈 설정으로">←</button><h2>우리끼리 인물 퀴즈</h2></div>
@@ -832,7 +846,7 @@ function peopleView() {
     else toast(`'${name}' 문제를 추가했어요`);
     peopleView();
   };
-  $app.querySelectorAll(".x").forEach(b => b.onclick = () => { customPeople.splice(+b.dataset.i, 1); store.set("hp_people", customPeople); peopleView(); });
+  $app.querySelectorAll(".x").forEach(b => b.onclick = () => { if (!confirm("이 문제를 삭제할까요?")) return; customPeople.splice(+b.dataset.i, 1); store.set("hp_people", customPeople); peopleView(); });
   const play = document.getElementById("play");
   if (play) play.onclick = () => { quiz.source = "custom"; quiz.list = shuffle(customPeople); quiz.idx = 0; quiz.right = 0; quiz.missed = 0; quizRound(); };
 }
