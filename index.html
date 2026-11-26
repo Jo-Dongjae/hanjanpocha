@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>한잔포차 술게임</title>
+<meta name="theme-color" content="#0c231c">
+<meta name="description" content="폰 하나로 돌리는 술게임: 질문 카드와 인물 퀴즈">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="한잔포차">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: one-phone party app; a single centered column of big tap targets, a card stage in the middle, controls pinned to the thumb zone. Deliberately single dark theme: a soju-bottle green tent at night. */
+:root {
+  color-scheme: dark;
+  --bg: #0c231c;
+  --bg-2: #123329;
+  --surface: #f3efe2;
+  --surface-ink: #1b1a16;
+  --fg: #eaf3ee;
+  --muted: #93b3a6;
+  --line: #24493c;
+  --accent: #ff6a3d;
+  --accent-ink: #2a0d03;
+  --mint: #7fe0bf;
+  --gold: #ffcf5a;
+  --display: "Black Han Sans", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+  --body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: radial-gradient(120% 70% at 50% -10%, #1a4a3a 0%, var(--bg) 60%) fixed, var(--bg);
+  color: var(--fg);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-tap-highlight-color: transparent;
+}
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-block: 20px 28px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, label:focus-within { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* top bar */
+.bar { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+.bar h2 { font-size: 22px; flex: 1; min-width: 0; }
+.back { width: 44px; height: 44px; border-radius: 50%; background: var(--bg-2); border: 1px solid var(--line); font-size: 20px; display: grid; place-items: center; flex: none; }
+.pill { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* home */
+.brand { padding-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.brand .eyebrow { color: var(--mint); font-size: 13px; letter-spacing: .14em; font-weight: 700; }
+.brand h1 { font-size: clamp(44px, 14vw, 64px); line-height: 1; }
+.brand h1 span { color: var(--accent); }
+.brand p { color: var(--muted); margin: 4px 0 0; }
+.games { display: grid; gap: 14px; }
+.game {
+  text-align: left; padding: 22px 20px; border-radius: 22px;
+  display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 6px 12px;
+  transition: transform .15s ease;
+}
+.game:active { transform: scale(.98); }
+.game h3 { font-size: 30px; grid-column: 1; }
+.game p { margin: 0; grid-column: 1; font-size: 14px; opacity: .8; }
+.game .glyph { grid-column: 2; grid-row: 1 / span 2; font-family: var(--display); font-size: 56px; line-height: 1; opacity: .9; }
+.game.cards { background: var(--surface); color: var(--surface-ink); }
+.game.quiz { background: var(--accent); color: var(--accent-ink); }
+.notice { font-size: 13px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 14px; margin-top: auto; }
+
+/* deck chips */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg-2);
+  font-size: 14px; font-weight: 500; color: var(--muted);
+}
+.chip[aria-pressed="true"] { background: var(--mint); color: #062118; border-color: var(--mint); font-weight: 700; }
+
+/* card stage */
+.stage { perspective: 1200px; flex: 1; display: flex; min-height: 340px; }
+.card {
+  position: relative; width: 100%; min-height: 340px; flex: 1;
+  transform-style: preserve-3d; transition: transform .55s cubic-bezier(.2,.8,.2,1);
+}
+.card.flipped { transform: rotateY(180deg); }
+.face {
+  position: absolute; inset: 0; border-radius: 26px; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  display: flex; flex-direction: column; padding: 24px 22px;
+}
+.face.front {
+  background:
+    repeating-linear-gradient(45deg, transparent 0 14px, rgba(255,255,255,.04) 14px 28px),
+    var(--bg-2);
+  border: 2px solid var(--line);
+  align-items: center; justify-content: center; gap: 10px; text-align: center;
+}
+.face.front .big { font-family: var(--display); font-size: 64px; color: var(--accent); line-height: 1; }
+.face.front .hint { color: var(--muted); font-size: 14px; }
+.face.rear { background: var(--surface); color: var(--surface-ink); transform: rotateY(180deg); gap: 14px; }
+.tag { align-self: flex-start; font-size: 12px; font-weight: 700; letter-spacing: .08em; padding: 5px 10px; border-radius: 8px; background: var(--surface-ink); color: var(--surface); }
+.qtext { font-size: clamp(22px, 6.4vw, 28px); font-weight: 900; line-height: 1.4; word-break: keep-all; overflow-wrap: anywhere; flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; }
+.vs { display: grid; gap: 10px; flex: 1; align-content: center; }
+.vs div { background: #e4ddc8; border-radius: 14px; padding: 14px 16px; font-weight: 700; font-size: 19px; word-break: keep-all; }
+.vs b { justify-self: center; font-family: var(--display); color: var(--accent); font-size: 22px; font-weight: 400; }
+.rule { font-size: 13px; color: #5d5a4e; border-top: 1px dashed #c9c1aa; padding-top: 10px; }
+
+/* buttons */
+.row { display: flex; gap: 10px; }
+.row > * { flex: 1; }
+.btn {
+  min-height: 56px; border-radius: 16px; font-weight: 700; font-size: 17px; padding: 0 16px;
+  background: var(--bg-2); border: 1px solid var(--line);
+}
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.mint { background: var(--mint); color: #062118; border-color: var(--mint); }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.small { min-height: 44px; font-size: 15px; }
+
+/* quiz */
+.quizbox { background: var(--surface); color: var(--surface-ink); border-radius: 26px; padding: 20px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+.quizhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.timer { position: relative; width: 64px; height: 64px; flex: none; }
+.timer svg { width: 64px; height: 64px; transform: rotate(-90deg); }
+.timer .t { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-size: 24px; font-variant-numeric: tabular-nums; }
+.timer.hurry .t { color: var(--accent); }
+.hints { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.hints li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; background: #e4ddc8; border-radius: 14px; padding: 12px 14px; font-weight: 700; font-size: 17px; word-break: keep-all; animation: pop .35s ease; }
+.hints li span { font-family: var(--display); color: var(--accent); font-weight: 400; font-size: 18px; }
+.hints li.locked { background: transparent; border: 2px dashed #c9c1aa; color: #8c8672; font-weight: 500; animation: none; }
+.photo { position: relative; border-radius: 18px; overflow: hidden; aspect-ratio: 1 / 1; max-width: 100%; background: #d6cfb8; }
+.photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter .6s ease, transform .6s ease; }
+.answer { text-align: center; padding: 10px 0 4px; animation: pop .4s ease; }
+.answer small { display: block; color: #6b6656; font-size: 13px; }
+.answer strong { font-family: var(--display); font-weight: 400; font-size: clamp(34px, 11vw, 46px); color: var(--surface-ink); line-height: 1.2; word-break: keep-all; }
+.penalty { background: var(--surface-ink); color: var(--gold); border-radius: 14px; padding: 12px 14px; font-weight: 700; text-align: center; }
+@keyframes pop { from { transform: scale(.94); opacity: .3; } to { transform: none; opacity: 1; } }
+
+/* setup / edit */
+.panel { background: var(--bg-2); border: 1px solid var(--line); border-radius: 20px; padding: 18px; display: grid; gap: 14px; }
+.panel h3 { font-size: 20px; }
+.panel p { margin: 0; color: var(--muted); font-size: 14px; }
+label.f { display: grid; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 500; }
+input[type=text], textarea, select {
+  width: 100%; font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+}
+textarea { resize: vertical; min-height: 72px; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.seg button { min-height: 48px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); font-weight: 700; font-size: 15px; }
+.seg button[aria-pressed="true"] { background: var(--mint); color: #062118; border-color: var(--mint); }
+.list { display: grid; gap: 8px; }
+.item { display: flex; align-items: center; gap: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.item img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex: none; }
+.item .txt { flex: 1; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.item .txt b { display: block; font-size: 15px; }
+.item .x { width: 36px; height: 36px; border-radius: 10px; color: var(--muted); font-size: 18px; flex: none; }
+.upload { display: flex; align-items: center; gap: 12px; padding: 12px; border: 2px dashed var(--line); border-radius: 12px; cursor: pointer; color: var(--muted); font-size: 14px; }
+.upload img { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; }
+.upload input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.empty { color: var(--muted); font-size: 14px; text-align: center; padding: 10px; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--mint); color: #062118; font-weight: 700; padding: 10px 18px; border-radius: 999px; font-size: 14px; z-index: 20; animation: pop .25s ease; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+
+<div class="app" id="app"></div>
+
+<script>
+/* ---------- data ---------- */
+const DECKS = {
+  balance: { name: "밸런스 게임", rule: "셋 하면 동시에 손가락으로 A·B 선택! 소수파가 한 잔.", items: [
+    ["평생 라면 금지", "평생 치킨 금지"],
+    ["매일 아침 6시 기상", "매일 새벽 3시 취침"],
+    ["연락 안 되는 애인", "연락 너무 자주 하는 애인"],
+    ["10억 받고 10년 늙기", "그냥 지금 그대로"],
+    ["여름에 히터만 있는 방", "겨울에 에어컨만 있는 방"],
+    ["모든 노래 가사가 틀리게 들림", "모든 음식이 1% 덜 맛있음"],
+    ["전 애인과 같은 회사", "전 애인과 같은 아파트"],
+    ["말할 때마다 랩으로", "말할 때마다 노래로"],
+    ["평생 소주만", "평생 맥주만"],
+    ["친구 없는 부자", "친구 많은 가난뱅이"],
+    ["단톡방 내 메시지 전부 공개", "검색 기록 전부 공개"],
+    ["1년 동안 휴대폰 없이", "1년 동안 친구 없이"],
+    ["주 4일 근무 월급 그대로", "주 5일 근무 월급 1.5배"],
+    ["투명인간 능력", "순간이동 능력"],
+    ["잠수 이별", "카톡 이별"],
+    ["엄마한테 내 흑역사 공개", "회사 동료한테 내 흑역사 공개"],
+    ["눈 뜨고 키스", "눈 감고 키스"],
+    ["첫 만남에 키스까지 OK", "손잡기도 세 번째 만남부터"],
+    ["잠옷 입고 자기", "아무것도 안 입고 자기"],
+    ["스킨십 많은 애인", "말로 표현 많이 하는 애인"],
+    ["키스 못하는 애인", "스킨십 싫어하는 애인"],
+    ["첫 데이트에 바로 키스", "100일까지 손만 잡기"],
+    ["매일 가벼운 뽀뽀만 하는 연애", "일주일에 한 번 진하게 키스하는 연애"],
+    ["입 냄새 나는 키스 장인", "향기 좋은 키스 초보"],
+    ["몸은 완벽한데 대화가 안 통하는 애인", "대화는 완벽한데 스킨십이 안 맞는 애인"],
+    ["처음 만난 날 같이 밤새기", "사귄 지 1년 뒤에 첫 키스"],
+    ["애인과 스킨십하다 부모님께 들키기", "애인과 스킨십하다 친구들한테 들키기"],
+    ["야한 꿈 꾼 걸 애인한테 들키기", "야한 검색 기록 부모님한테 들키기"],
+    ["원나잇 상대가 알고 보니 회사 상사", "원나잇 상대가 알고 보니 친구의 전 애인"],
+    ["애인 폰에 전 애인 사진 100장", "애인 폰에 모르는 사람 번호 100개"],
+    ["애인이 내 친구랑 키스", "애인이 전 애인이랑 키스"],
+    ["애인이 혼자 클럽 가기", "애인이 전 애인이랑 단둘이 술 마시기"],
+    ["스킨십할 때 불 켜고", "스킨십할 때 불 끄고"],
+    ["애인 자취방에서 첫날밤", "호텔에서 첫날밤"],
+    ["잠자리 궁합 먼저 확인하고 사귀기", "사귀고 나서 천천히 확인하기"],
+    ["성격은 완벽한데 잠자리 궁합이 별로", "잠자리 궁합은 완벽한데 성격이 별로"],
+    ["매일 스킨십 원하는 애인", "한 달에 한 번만 원하는 애인"],
+    ["침대에서 말 많은 애인", "침대에서 말 한마디 없는 애인"],
+    ["잠자리 후 바로 곯아떨어지는 애인", "잠자리 후 밤새 말 거는 애인"],
+    ["목에 키스 자국 남기는 애인", "흔적은 절대 안 남기는 애인"],
+    ["속옷 취향이 너무 화려한 애인", "속옷 취향이 너무 무난한 애인"],
+    ["엘리베이터 안에서 몰래 키스", "관람차 꼭대기에서 키스"],
+    ["애인 친구들 앞에서 진하게 키스", "내 친구들 앞에서 진하게 키스"],
+    ["애인이랑 야한 영화 같이 보기", "부모님이랑 야한 장면 나오는 영화 보기"],
+    ["애인의 전 애인 잠자리 이야기 듣기", "전 애인이 내 잠자리 이야기 하고 다니기"]
+  ]},
+  pick: { name: "이 중에 누구?", rule: "하나, 둘, 셋 하면 동시에 지목! 가장 많이 지목된 사람이 한 잔.", items: [
+    "이 중에 제일 '테토'한 사람은?",
+    "이 중에 제일 '에겐'한 사람은?",
+    "이 중에 제일 극강의 'T'인 사람은? (공감 능력 0)",
+    "이 중에 MBTI 바뀌었다고 우길 것 같은 사람은?",
+    "이 중에 무슨 일이 생겨도 '완전 럭키비키잖아' 할 사람은?",
+    "이 중에 하루에 릴스·쇼츠 제일 오래 보는 사람은?",
+    "이 중에 도파민 중독 1등은?",
+    "이 중에 유튜브 알고리즘이 제일 이상할 것 같은 사람은? (홈 화면 공개!)",
+    "이 중에 고민 상담을 친구보다 챗GPT한테 먼저 할 것 같은 사람은?",
+    "이 중에 '나는 SOLO' 나가면 첫인상 선택 제일 많이 받을 사람은?",
+    "이 중에 '환승연애' 나가면 제일 많이 울 것 같은 사람은?",
+    "이 중에 '흑백요리사' 나가면 1라운드에서 떨어질 사람은?",
+    "이 중에 '피지컬: 100' 나가면 제일 오래 버틸 사람은?",
+    "이 중에 팝업스토어 오픈런 제일 많이 할 것 같은 사람은?",
+    "이 중에 '오운완' 인증 제일 열심히 올리는 사람은?",
+    "이 중에 러닝크루 들어가서 연애할 것 같은 사람은?",
+    "이 중에 갓생 사는 척하지만 사실 제일 많이 누워 있는 사람은?",
+    "이 중에 무지출 챌린지 하루 만에 실패할 사람은?",
+    "이 중에 코인이나 주식으로 '존버' 중일 것 같은 사람은?",
+    "이 중에 제일 먼저 퇴사하고 유튜버 할 것 같은 사람은?",
+    "이 중에 오늘 술자리 인스타 스토리에 제일 먼저 올릴 사람은?",
+    "이 중에 플러팅을 받아도 플러팅인 줄 모를 사람은?",
+    "이 중에 카톡 답장을 'ㅇㅇ', '넹'으로만 할 것 같은 사람은?",
+    "이 중에 오늘 제일 먼저 취할 것 같은 사람은?",
+    "이 중에 노래방 마이크 안 놓을 것 같은 사람은?",
+    "이 중에 비밀 제일 못 지킬 것 같은 사람은?",
+    "이 중에 좀비 사태 때 제일 오래 살아남을 사람은?",
+    "이 중에 키스 제일 잘할 것 같은 사람은?",
+    "이 중에 의외로 연애 경험이 제일 많을 것 같은 사람은?",
+    "이 중에 연애할 때 스킨십 제일 좋아할 것 같은 사람은?",
+    "이 중에 연인한테 제일 다정할 것 같은 사람은?",
+    "이 중에 제일 '밝힐' 것 같은 사람은?",
+    "이 중에 침대에서 반전 매력 있을 것 같은 사람은?",
+    "이 중에 첫 데이트에 진도 제일 빨리 나갈 것 같은 사람은?",
+    "이 중에 술 먹고 전 애인이랑 다시 잘 것 같은 사람은?",
+    "이 중에 원나잇 경험 있을 것 같은 사람은?",
+    "이 중에 썸 상대한테 '라면 먹고 갈래?' 할 것 같은 사람은?",
+    "이 중에 야한 농담 제일 잘 받아칠 사람은?",
+    "이 중에 첫 경험이 제일 빨랐을 것 같은 사람은?",
+    "이 중에 가장 최근에 스킨십했을 것 같은 사람은?",
+    "이 중에 전 애인 수가 제일 많을 것 같은 사람은?",
+    "이 중에 가장 아찔한 장소에서 스킨십해 봤을 것 같은 사람은?",
+    "이 중에 잠자리에서 리드할 것 같은 사람은?",
+    "이 중에 스킨십할 때 불 켜는 걸 좋아할 것 같은 사람은?",
+    "이 중에 야한 꿈을 제일 자주 꿀 것 같은 사람은?",
+    "이 중에 야한 거 보다가 들켜 봤을 것 같은 사람은?",
+    "이 중에 키스 자국 가리려고 목폴라 입어 봤을 것 같은 사람은?",
+    "이 중에 잠자리 궁합 때문에 헤어져 봤을 것 같은 사람은?",
+    "이 중에 모텔 앞에서 아는 사람 마주쳐 봤을 것 같은 사람은?"
+  ]},
+  truth: { name: "진실 or 한 잔", rule: "카드를 뽑은 사람이 솔직하게 대답하거나, 대답 대신 한 잔.", items: [
+    "지금 휴대폰 최근 검색어는?",
+    "여기 있는 사람 중 첫인상이 별로였던 사람은?",
+    "가장 최근에 한 거짓말은?",
+    "전 애인한테 마지막으로 연락한 게 언제?",
+    "인생 최대의 흑역사는?",
+    "지금 몰래 좋아하는 사람이 있다?",
+    "여기서 한 명이랑만 무인도에 간다면?",
+    "가장 후회하는 소비는?",
+    "부모님께 아직 말 못 한 비밀이 있다?",
+    "술 먹고 했던 가장 창피한 행동은?",
+    "단톡방 말고 따로 뒷담방이 있다?",
+    "지금까지 고백을 몇 번 해봤어?",
+    "가장 오래 짝사랑한 기간은?",
+    "여기 있는 사람 중 가장 친해지고 싶은 사람은?",
+    "내가 생각하는 나의 최대 단점은?",
+    "첫 키스는 몇 살 때, 어디서?",
+    "지금까지 사귄 사람은 몇 명?",
+    "가장 기억에 남는 스킨십 장소는?",
+    "가장 설레는 스킨십은? (손깍지, 백허그, 이마 키스 …)",
+    "사람한테 가장 끌리는 몸의 부위 하나는?",
+    "상대가 섹시하다고 느끼는 행동 하나는?",
+    "원나잇, 해본 적 있다 없다?",
+    "술 먹고 했던 가장 대담한 스킨십은?",
+    "썸 타는 사람에게 보낸 가장 아찔한 메시지는?",
+    "'오늘 집에 가지 마' 들어본 적 있다 없다?",
+    "연인을 전 애인이랑 비교해 본 적 있다?",
+    "아는 사람이 야한 꿈에 나온 적 있다?",
+    "사진첩에 절대 못 보여주는 사진이 있다?",
+    "연인한테 듣고 싶은 가장 설레는 말 한마디는?"
+  ]},
+  mission: { name: "미션", rule: "카드를 뽑은 사람이 미션 수행! 거부하면 두 잔.", items: [
+    "오른쪽 사람에게 진심 담은 칭찬 3개 하기",
+    "가장 최근 사진 한 장 모두에게 공개하기",
+    "10초 동안 아무 말 없이 왼쪽 사람과 눈 마주치기",
+    "좋아하는 노래 후렴 한 소절 부르기",
+    "다음 차례까지 모든 말 끝에 '~냥' 붙이기",
+    "가장 최근 통화한 사람에게 '사랑해' 문자 보내기",
+    "자기소개를 아나운서 톤으로 하기",
+    "모두가 고른 사람의 성대모사 하기",
+    "건배사 하나 만들어서 선창하기",
+    "지금 이 자리 사람들 별명 하나씩 지어주기",
+    "카톡 프로필 문구를 모두가 정한 문장으로 1시간 바꾸기",
+    "다음 판까지 왼손으로만 마시기"
+  ]}
+};
+
+const CATS = { kr: "한국 역사", world: "세계 역사", sci: "과학·기업", art: "미술·문학", music: "음악·가수", sport: "스포츠", ent: "영화·방송", char: "캐릭터" };
+const FAMOUS = [
+  // 한국 역사
+  ["kr", "세종대왕", ["조선 4대 왕", "집현전", "훈민정음"]],
+  ["kr", "이순신", ["난중일기", "거북선", "명량해전 12척"]],
+  ["kr", "유관순", ["이화학당", "아우내 장터", "3·1 운동"]],
+  ["kr", "신사임당", ["초충도", "율곡 이이의 어머니", "5만원권"]],
+  ["kr", "장영실", ["노비 출신 과학자", "자격루", "측우기"]],
+  ["kr", "김구", ["백범", "임시정부 주석", "백범일지"]],
+  ["kr", "안중근", ["단지동맹", "하얼빈역", "이토 히로부미"]],
+  ["kr", "정약용", ["다산", "거중기", "목민심서"]],
+  ["kr", "허준", ["선조의 어의", "한의학", "동의보감"]],
+  ["kr", "광개토대왕", ["고구려 19대 왕", "영토 확장", "능비"]],
+  ["kr", "을지문덕", ["고구려 장군", "수나라", "살수대첩"]],
+  ["kr", "강감찬", ["고려 장군", "거란", "귀주대첩"]],
+  ["kr", "김유신", ["신라 장군", "화랑", "삼국 통일"]],
+  ["kr", "선덕여왕", ["신라", "첫 여왕", "첨성대"]],
+  ["kr", "장보고", ["통일신라", "해상왕", "청해진"]],
+  ["kr", "왕건", ["후삼국 통일", "고려 건국", "태조"]],
+  ["kr", "이성계", ["위화도 회군", "조선 건국", "태조"]],
+  ["kr", "이황", ["퇴계", "도산서원", "천원권"]],
+  ["kr", "이이", ["율곡", "십만양병설", "오천원권"]],
+  ["kr", "정조", ["사도세자의 아들", "규장각", "수원 화성"]],
+  ["kr", "연산군", ["조선 10대 왕", "무오사화", "중종반정으로 폐위"]],
+  ["kr", "흥선대원군", ["고종의 아버지", "경복궁 중건", "쇄국 정책"]],
+  ["kr", "윤봉길", ["한인애국단", "1932년 상하이", "훙커우 공원 의거"]],
+  ["kr", "안창호", ["도산", "신민회", "흥사단"]],
+  ["kr", "김홍도", ["단원", "조선 풍속화", "씨름·서당"]],
+  ["kr", "신윤복", ["혜원", "단오풍정", "미인도"]],
+  ["kr", "김정호", ["조선 후기 지리학자", "목판 지도", "대동여지도"]],
+  ["kr", "전봉준", ["녹두장군", "고부", "동학농민운동"]],
+  ["kr", "논개", ["임진왜란", "진주성", "왜장을 끌어안고 강물로"]],
+  ["kr", "황진이", ["조선 기생", "송도", "시조 '동짓달 기나긴 밤'"]],
+  // 세계 역사
+  ["world", "나폴레옹", ["코르시카섬", "엘바섬 유배", "'내 사전에 불가능은 없다'"]],
+  ["world", "클레오파트라", ["카이사르·안토니우스", "프톨레마이오스 왕조", "이집트 마지막 여왕"]],
+  ["world", "마하트마 간디", ["소금 행진", "비폭력 저항", "인도 독립 운동"]],
+  ["world", "에이브러햄 링컨", ["통나무집 출생", "게티즈버그 연설", "노예 해방"]],
+  ["world", "공자", ["춘추시대 노나라", "논어", "유교"]],
+  ["world", "알렉산드로스 대왕", ["마케도니아", "아리스토텔레스의 제자", "동서양을 잇는 대제국"]],
+  ["world", "칭기즈 칸", ["본명 테무친", "몽골 초원 통일", "몽골 제국"]],
+  ["world", "진시황", ["중국 첫 황제", "분서갱유", "만리장성·병마용"]],
+  ["world", "잔 다르크", ["백년전쟁", "오를레앙", "화형당한 프랑스 소녀"]],
+  ["world", "율리우스 카이사르", ["로마 장군", "루비콘강", "'주사위는 던져졌다'"]],
+  ["world", "마틴 루서 킹", ["흑인 인권 운동", "노벨 평화상", "'I have a dream'"]],
+  ["world", "넬슨 만델라", ["남아공", "27년 수감", "아파르트헤이트 철폐"]],
+  ["world", "조지 워싱턴", ["독립전쟁 총사령관", "미국 초대 대통령", "1달러 지폐"]],
+  ["world", "엘리자베스 2세", ["영국 여왕", "70년 재위", "2022년 서거"]],
+  ["world", "소크라테스", ["아테네 철학자", "독배", "'너 자신을 알라'"]],
+  ["world", "마더 테레사", ["수녀", "인도 콜카타", "노벨 평화상"]],
+  ["world", "크리스토퍼 콜럼버스", ["1492년", "산타마리아호", "아메리카 대륙 도착"]],
+  ["world", "마르코 폴로", ["베네치아 상인", "쿠빌라이 칸", "동방견문록"]],
+  ["world", "제갈량", ["와룡", "출사표", "촉나라 승상"]],
+  ["world", "관우", ["삼국지", "청룡언월도", "긴 수염"]],
+  // 과학·기업
+  ["sci", "아인슈타인", ["상대성 이론", "혀 내민 사진", "E = mc²"]],
+  ["sci", "아이작 뉴턴", ["프린키피아", "미적분", "사과와 만유인력"]],
+  ["sci", "토머스 에디슨", ["축음기", "'99%의 노력'", "전구"]],
+  ["sci", "마리 퀴리", ["폴란드 출신", "노벨상 두 번", "라듐·폴로늄"]],
+  ["sci", "갈릴레오 갈릴레이", ["망원경", "지동설 재판", "'그래도 지구는 돈다'"]],
+  ["sci", "찰스 다윈", ["갈라파고스", "종의 기원", "진화론"]],
+  ["sci", "니콜라 테슬라", ["교류 전기", "에디슨의 라이벌", "전기차 회사 이름"]],
+  ["sci", "라이트 형제", ["1903년", "자전거 가게", "최초의 동력 비행"]],
+  ["sci", "스티븐 호킹", ["휠체어", "시간의 역사", "블랙홀"]],
+  ["sci", "알프레드 노벨", ["스웨덴", "다이너마이트", "이름을 딴 상"]],
+  ["sci", "그레이엄 벨", ["청각장애 교육", "특허 경쟁", "전화기"]],
+  ["sci", "아르키메데스", ["목욕탕", "부력", "'유레카!'"]],
+  ["sci", "닐 암스트롱", ["아폴로 11호", "1969년", "달에 첫발"]],
+  ["sci", "스티브 잡스", ["검은 터틀넥", "픽사", "아이폰"]],
+  ["sci", "빌 게이츠", ["하버드 중퇴", "윈도우", "마이크로소프트"]],
+  ["sci", "일론 머스크", ["스페이스X", "X(트위터) 인수", "테슬라"]],
+  ["sci", "마크 저커버그", ["하버드 기숙사", "메타", "페이스북"]],
+  ["sci", "정주영", ["소떼 방북", "'해봤어?'", "현대그룹"]],
+  // 미술·문학
+  ["art", "레오나르도 다빈치", ["거울 글씨 노트", "최후의 만찬", "모나리자"]],
+  ["art", "빈센트 반 고흐", ["동생 테오", "해바라기", "별이 빛나는 밤"]],
+  ["art", "파블로 피카소", ["청색 시대", "게르니카", "입체파"]],
+  ["art", "미켈란젤로", ["르네상스", "다비드상", "시스티나 성당 천장화"]],
+  ["art", "클로드 모네", ["인상, 해돋이", "지베르니 정원", "수련"]],
+  ["art", "앤디 워홀", ["팝아트", "캠벨 수프 캔", "마릴린 먼로 그림"]],
+  ["art", "프리다 칼로", ["멕시코", "자화상", "일자 눈썹"]],
+  ["art", "셰익스피어", ["영국 극작가", "햄릿", "로미오와 줄리엣"]],
+  ["art", "안데르센", ["덴마크", "미운 오리 새끼", "인어공주"]],
+  ["art", "생텍쥐페리", ["프랑스 비행사", "여우와 장미", "어린 왕자"]],
+  ["art", "J.K. 롤링", ["영국 작가", "호그와트", "해리 포터"]],
+  ["art", "어니스트 헤밍웨이", ["쿠바", "무기여 잘 있거라", "노인과 바다"]],
+  ["art", "레프 톨스토이", ["러시아", "안나 카레니나", "전쟁과 평화"]],
+  ["art", "윤동주", ["후쿠오카 형무소", "별 헤는 밤", "서시"]],
+  ["art", "김소월", ["영변의 약산", "엄마야 누나야", "진달래꽃"]],
+  ["art", "박경리", ["통영", "대하소설", "토지"]],
+  ["art", "한강", ["소년이 온다", "채식주의자", "2024 노벨 문학상"]],
+  // 음악·가수
+  ["music", "베토벤", ["청력 상실", "엘리제를 위하여", "운명 교향곡"]],
+  ["music", "모차르트", ["잘츠부르크 신동", "마술피리", "아마데우스"]],
+  ["music", "바흐", ["바로크", "G선상의 아리아", "음악의 아버지"]],
+  ["music", "쇼팽", ["폴란드", "녹턴", "피아노의 시인"]],
+  ["music", "비발디", ["베네치아", "바로크", "사계"]],
+  ["music", "엘비스 프레슬리", ["골반 춤", "Love Me Tender", "로큰롤의 황제"]],
+  ["music", "마이클 잭슨", ["잭슨 파이브", "스릴러", "문워크"]],
+  ["music", "존 레논", ["오노 요코", "Imagine", "비틀스"]],
+  ["music", "프레디 머큐리", ["콧수염", "보헤미안 랩소디", "퀸"]],
+  ["music", "테일러 스위프트", ["컨트리에서 팝으로", "에라스 투어", "미국 싱어송라이터"]],
+  ["music", "조용필", ["돌아와요 부산항에", "Bounce", "가왕"]],
+  ["music", "서태지", ["90년대 데뷔", "난 알아요", "문화대통령"]],
+  ["music", "이효리", ["핑클", "10 Minutes", "제주도"]],
+  ["music", "보아", ["어린 나이 데뷔", "No.1", "아시아의 별"]],
+  ["music", "싸이", ["흠뻑쇼", "말춤", "강남스타일"]],
+  ["music", "아이유", ["3단 고음", "좋은 날", "국민 여동생"]],
+  ["music", "임영웅", ["트로트", "미스터트롯 우승", "영웅시대"]],
+  // 스포츠
+  ["sport", "김연아", ["피겨 스케이팅", "2010 밴쿠버 금메달", "피겨 여왕"]],
+  ["sport", "손흥민", ["토트넘", "프리미어리그 득점왕", "찰칵 세리머니"]],
+  ["sport", "박지성", ["2002 월드컵", "맨체스터 유나이티드", "두 개의 심장"]],
+  ["sport", "차범근", ["분데스리가", "차붐", "한국 축구 레전드"]],
+  ["sport", "박찬호", ["LA 다저스", "한국인 첫 메이저리거", "코리안 특급"]],
+  ["sport", "류현진", ["한화 이글스", "LA 다저스", "괴물 투수"]],
+  ["sport", "이승엽", ["삼성 라이온즈", "홈런", "국민 타자"]],
+  ["sport", "박세리", ["골프", "1998 US 여자오픈", "맨발 투혼"]],
+  ["sport", "김연경", ["배구", "흥국생명", "배구 여제"]],
+  ["sport", "황영조", ["1992 바르셀로나", "마라톤 금메달", "몬주익의 영웅"]],
+  ["sport", "안세영", ["배드민턴", "2024 파리 올림픽", "금메달"]],
+  ["sport", "리오넬 메시", ["아르헨티나", "FC 바르셀로나", "2022 월드컵 우승"]],
+  ["sport", "크리스티아누 호날두", ["포르투갈", "CR7", "'시우!' 세리머니"]],
+  ["sport", "마이클 조던", ["시카고 불스", "23번", "에어 조던"]],
+  ["sport", "우사인 볼트", ["자메이카", "100m 9초58", "번개 세리머니"]],
+  ["sport", "오타니 쇼헤이", ["일본", "LA 다저스", "투타 겸업 이도류"]],
+  ["sport", "페이커", ["리그 오브 레전드", "T1", "불사대마왕"]],
+  // 영화·방송
+  ["ent", "유재석", ["무한도전", "유산슬", "국민 MC"]],
+  ["ent", "강호동", ["씨름 선수 출신", "1박 2일", "아는 형님"]],
+  ["ent", "백종원", ["슈가보이", "골목식당", "더본코리아"]],
+  ["ent", "나영석", ["1박 2일 PD", "꽃보다 할배", "삼시세끼"]],
+  ["ent", "봉준호", ["봉테일", "아카데미 작품상", "기생충"]],
+  ["ent", "송강호", ["기생충 아버지", "변호인", "칸 남우주연상"]],
+  ["ent", "이정재", ["오징어 게임", "에미상 남우주연상", "456번"]],
+  ["ent", "윤여정", ["미나리", "아카데미 여우조연상", "꽃보다 누나"]],
+  ["ent", "마동석", ["범죄도시", "마블리", "굵은 팔뚝"]],
+  ["ent", "찰리 채플린", ["무성영화", "모던 타임즈", "콧수염·지팡이"]],
+  ["ent", "마릴린 먼로", ["금발", "날리는 흰 드레스", "1950년대 할리우드"]],
+  ["ent", "오드리 헵번", ["로마의 휴일", "티파니에서 아침을", "유니세프"]],
+  ["ent", "이소룡", ["쿵후", "노란 트레이닝복", "용쟁호투"]],
+  ["ent", "레오나르도 디카프리오", ["타이타닉", "레버넌트로 오스카", "로미오 + 줄리엣"]],
+  ["ent", "톰 크루즈", ["탑건", "대역 없는 액션", "미션 임파서블"]],
+  // 캐릭터
+  ["char", "해리 포터", ["번개 흉터", "그리핀도르", "호그와트"]],
+  ["char", "셜록 홈즈", ["베이커가 221B", "왓슨", "명탐정"]],
+  ["char", "홍길동", ["허균", "활빈당", "아버지를 아버지라 부르지 못하고"]],
+  ["char", "성춘향", ["남원", "변학도", "이몽룡"]],
+  ["char", "심청", ["심봉사", "공양미 삼백 석", "인당수"]],
+  ["char", "손오공 (서유기)", ["삼장법사", "근두운", "여의봉"]],
+  ["char", "뽀로로", ["펭귄", "뽀통령", "노는 게 제일 좋아"]],
+  ["char", "아기공룡 둘리", ["고길동", "호이~", "빙하 타고 온 공룡"]],
+  ["char", "짱구", ["흰둥이", "액션가면", "엉덩이 춤"]],
+  ["char", "도라에몽", ["진구", "고양이 로봇", "4차원 주머니"]],
+  ["char", "피카츄", ["지우", "백만 볼트", "포켓몬"]],
+  ["char", "스폰지밥", ["비키니 시티", "집게리아", "뚱이"]],
+  ["char", "아이언맨", ["토니 스타크", "어벤져스", "'I am Iron Man'"]],
+  ["char", "스파이더맨", ["피터 파커", "거미에 물림", "친절한 이웃"]],
+  ["char", "배트맨", ["고담 시티", "브루스 웨인", "조커"]],
+  ["char", "엘사", ["겨울왕국", "얼음 마법", "Let It Go"]],
+  ["char", "피터 팬", ["네버랜드", "팅커벨", "후크 선장"]],
+  ["char", "신데렐라", ["호박 마차", "자정", "유리 구두"]],
+  ["char", "백설공주", ["일곱 난쟁이", "독사과", "'거울아 거울아'"]]
+];
+
+/* ---------- storage (optional) ---------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+};
+let customQs = store.get("hp_customQs", []);       // [{deck, text, a, b}]
+customQs.forEach(q => { if (!DECKS[q.deck]) q.deck = "truth"; });
+let customPeople = store.get("hp_people", []);     // [{name, hints:[], photo}]
+
+/* ---------- helpers ---------- */
+const $app = document.getElementById("app");
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function toast(msg) {
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1800);
+}
+function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} }
+let timerId = null;
+function stopTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
+
+/* ---------- home ---------- */
+function home() {
+  stopTimer();
+  $app.innerHTML = `
+    <header class="brand">
+      <div class="eyebrow">폰 하나로 돌리는 술게임</div>
+      <h1>한잔<span>포차</span></h1>
+      <p>폰 하나를 가운데 두고, 차례대로 넘기면서 해요.</p>
+    </header>
+    <div class="games">
+      <button class="game cards" id="goCards">
+        <h3>질문 카드</h3><p>밸런스 · 이 중에 누구? · 진실 · 미션</p><span class="glyph" aria-hidden="true">?</span>
+      </button>
+      <button class="game quiz" id="goQuiz">
+        <h3>인물 퀴즈</h3><p>힌트 보고 맞히기 · 친구 사진으로 만들기</p><span class="glyph" aria-hidden="true">人</span>
+      </button>
+    </div>
+    <p class="notice">만 19세 이상만 이용해 주세요. 벌칙은 물 한 잔으로 바꿔도 됩니다.</p>`;
+  document.getElementById("goCards").onclick = () => cardsView();
+  document.getElementById("goQuiz").onclick = () => quizSetup();
+}
+
+/* ---------- question cards ---------- */
+let cardState = { decks: new Set(["balance", "pick", "truth", "mission"]), pile: [], idx: 0 };
+function buildPile() {
+  const all = [];
+  for (const k of cardState.decks) {
+    DECKS[k].items.forEach(it => all.push({ deck: k, it }));
+    customQs.filter(q => q.deck === k).forEach(q => all.push({ deck: k, it: k === "balance" ? [q.a, q.b] : q.text, custom: true }));
+  }
+  cardState.pile = shuffle(all); cardState.idx = 0;
+}
+function cardsView() {
+  stopTimer();
+  buildPile();
+  $app.innerHTML = `
+    <div class="bar"><button class="back" id="back" aria-label="처음으로">←</button><h2>질문 카드</h2><span class="pill" id="count"></span></div>
+    <div class="chips" id="chips">${Object.entries(DECKS).map(([k, d]) => `<button class="chip" data-k="${k}" aria-pressed="${cardState.decks.has(k)}">${d.name}</button>`).join("")}</div>
+    <div class="stage"><div class="card" id="card" role="button" tabindex="0" aria-label="카드 뒤집기">
+      <div class="face front"><div class="big">?</div><div class="hint">탭해서 카드 뒤집기</div></div>
+      <div class="face rear" id="back-face"></div>
+    </div></div>
+    <div class="row">
+      <button class="btn" id="prev">이전</button>
+      <button class="btn primary" id="next">다음 카드</button>
+    </div>
+    <button class="btn ghost small" id="addQ">+ 우리만의 질문 추가</button>`;
+  document.getElementById("back").onclick = home;
+  document.getElementById("chips").onclick = e => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    const k = b.dataset.k;
+    if (cardState.decks.has(k)) { if (cardState.decks.size === 1) { toast("최소 한 종류는 골라야 해요"); return; } cardState.decks.delete(k); }
+    else cardState.decks.add(k);
+    b.setAttribute("aria-pressed", cardState.decks.has(k));
+    buildPile(); renderCard(false);
+  };
+  const card = document.getElementById("card");
+  const flip = () => { card.classList.toggle("flipped"); buzz(15); };
+  card.onclick = flip;
+  card.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } };
+  document.getElementById("next").onclick = () => { cardState.idx = (cardState.idx + 1) % cardState.pile.length; if (cardState.idx === 0) { cardState.pile = shuffle(cardState.pile); toast("카드를 다시 섞었어요"); } renderCard(true); };
+  document.getElementById("prev").onclick = () => { cardState.idx = (cardState.idx - 1 + cardState.pile.length) % cardState.pile.length; renderCard(true); };
+  document.getElementById("addQ").onclick = addQuestionView;
+  renderCard(false);
+}
+function renderCard(animate) {
+  const card = document.getElementById("card");
+  const c = cardState.pile[cardState.idx];
+  const d = DECKS[c.deck];
+  const fill = () => {
+    document.getElementById("back-face").innerHTML = `
+      <span class="tag">${esc(d.name)}${c.custom ? " · 우리 질문" : ""}</span>
+      ${c.deck === "balance"
+        ? `<div class="vs"><div>A. ${esc(c.it[0])}</div><b>VS</b><div>B. ${esc(c.it[1])}</div></div>`
+        : `<div class="qtext">${esc(c.it)}</div>`}
+      <div class="rule">${esc(d.rule)}</div>`;
+    document.getElementById("count").textContent = `${cardState.idx + 1} / ${cardState.pile.length}`;
+  };
+  if (animate && card.classList.contains("flipped")) {
+    card.classList.remove("flipped");
+    setTimeout(() => { fill(); card.classList.add("flipped"); }, 280);
+  } else { fill(); if (animate) card.classList.add("flipped"); }
+}
+function addQuestionView() {
+  let deck = "pick";
+  const draw = () => {
+    $app.innerHTML = `
+      <div class="bar"><button class="back" id="back" aria-label="질문 카드로">←</button><h2>우리만의 질문</h2></div>
+      <form class="panel" id="f">
+        <label class="f">종류
+          <select id="deckSel">${Object.entries(DECKS).map(([k, d]) => `<option value="${k}" ${k === deck ? "selected" : ""}>${d.name}</option>`).join("")}</select>
+        </label>
+        ${deck === "balance"
+          ? `<label class="f">A 선택지<input type="text" id="qa" maxlength="60" placeholder="예: 평생 떡볶이 금지" required></label>
+             <label class="f">B 선택지<input type="text" id="qb" maxlength="60" placeholder="예: 평생 피자 금지" required></label>`
+          : `<label class="f">질문<textarea id="qt" maxlength="120" placeholder="예: 이 중에 지난 MT 때 제일 먼저 잠든 사람은?" required></textarea></label>`}
+        <button class="btn primary" type="submit">추가하기</button>
+      </form>
+      <div class="panel"><h3>추가한 질문 ${customQs.length}개</h3>
+        <div class="list">${customQs.length ? customQs.map((q, i) => `
+          <div class="item"><div class="txt"><b>${esc(DECKS[q.deck].name)}</b>${q.deck === "balance" ? esc(q.a) + " vs " + esc(q.b) : esc(q.text)}</div>
+          <button class="x" data-i="${i}" aria-label="삭제">✕</button></div>`).join("") : `<div class="empty">아직 없어요. 친구들끼리만 아는 질문을 넣어 보세요.</div>`}
+        </div></div>`;
+    document.getElementById("back").onclick = cardsView;
+    document.getElementById("deckSel").onchange = e => { deck = e.target.value; draw(); };
+    document.getElementById("f").onsubmit = e => {
+      e.preventDefault();
+      if (deck === "balance") {
+        const a = document.getElementById("qa").value.trim(), b = document.getElementById("qb").value.trim();
+        if (!a || !b) return; customQs.push({ deck, a, b });
+      } else {
+        const t = document.getElementById("qt").value.trim(); if (!t) return; customQs.push({ deck, text: t });
+      }
+      store.set("hp_customQs", customQs); toast("질문을 추가했어요"); draw();
+    };
+    $app.querySelectorAll(".x").forEach(b => b.onclick = () => { customQs.splice(+b.dataset.i, 1); store.set("hp_customQs", customQs); draw(); });
+  };
+  draw();
+}
+
+/* ---------- person quiz ---------- */
+let quiz = { source: "famous", seconds: 20, count: 20, cats: new Set(Object.keys(CATS)), list: [], idx: 0, shown: 1, revealed: false, left: 0, right: 0, missed: 0 };
+function quizSetup() {
+  stopTimer();
+  const famous = quiz.source === "famous";
+  const pool = FAMOUS.filter(f => quiz.cats.has(f[0])).length;
+  $app.innerHTML = `
+    <div class="bar"><button class="back" id="back" aria-label="처음으로">←</button><h2>인물 퀴즈</h2></div>
+    <div class="panel">
+      <h3>어떤 문제로 할까요?</h3>
+      <div class="seg" style="grid-template-columns:1fr 1fr">
+        <button data-src="famous" aria-pressed="${famous}">유명 인물 ${FAMOUS.length}명</button>
+        <button data-src="custom" aria-pressed="${!famous}">우리끼리 ${customPeople.length}명</button>
+      </div>
+      <p>${famous ? "키워드 3개가 처음부터 모두 나와요. 먼저 외친 사람이 맞히면 나머지가 한 잔!" : "친구 사진과 키워드로 만든 문제예요. 키워드는 처음부터 다 보이고, 사진은 흐리게 시작해서 점점 선명해져요."}</p>
+    </div>
+    ${famous ? `<div class="panel">
+      <h3>분야</h3>
+      <p>고른 분야에서 섞어서 나와요. 지금 ${pool}명 중에서 나와요.</p>
+      <div class="chips">
+        <button class="chip" id="allCats" aria-pressed="${quiz.cats.size === Object.keys(CATS).length}">전체</button>
+        ${Object.entries(CATS).map(([k, n]) => `<button class="chip" data-cat="${k}" aria-pressed="${quiz.cats.has(k)}">${n} ${FAMOUS.filter(f => f[0] === k).length}</button>`).join("")}
+      </div>
+      <h3>문제 수</h3>
+      <div class="seg">${[10, 20, 0].map(n => `<button data-cnt="${n}" aria-pressed="${quiz.count === n}">${n ? n + "문제" : "전부"}</button>`).join("")}</div>
+    </div>` : ""}
+    <div class="panel">
+      <h3>제한 시간</h3>
+      <div class="seg">${[10, 20, 30].map(s => `<button data-sec="${s}" aria-pressed="${quiz.seconds === s}">${s}초</button>`).join("")}</div>
+    </div>
+    <button class="btn primary" id="start">시작하기</button>
+    <button class="btn ghost small" id="edit">+ 친구 사진으로 문제 만들기</button>`;
+  document.getElementById("back").onclick = home;
+  $app.querySelectorAll("[data-src]").forEach(b => b.onclick = () => { quiz.source = b.dataset.src; quizSetup(); });
+  $app.querySelectorAll("[data-sec]").forEach(b => b.onclick = () => { quiz.seconds = +b.dataset.sec; quizSetup(); });
+  $app.querySelectorAll("[data-cnt]").forEach(b => b.onclick = () => { quiz.count = +b.dataset.cnt; quizSetup(); });
+  $app.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
+    const k = b.dataset.cat;
+    if (quiz.cats.size === Object.keys(CATS).length) quiz.cats = new Set([k]);
+    else if (quiz.cats.has(k)) { if (quiz.cats.size === 1) { toast("최소 한 분야는 골라야 해요"); return; } quiz.cats.delete(k); }
+    else quiz.cats.add(k);
+    quizSetup();
+  });
+  const all = document.getElementById("allCats");
+  if (all) all.onclick = () => { quiz.cats = new Set(Object.keys(CATS)); quizSetup(); };
+  document.getElementById("edit").onclick = peopleView;
+  document.getElementById("start").onclick = () => {
+    let src;
+    if (famous) {
+      src = shuffle(FAMOUS.filter(f => quiz.cats.has(f[0])).map(([cat, name, hints]) => ({ cat, name, hints })));
+      if (quiz.count) src = src.slice(0, quiz.count);
+    } else src = shuffle(customPeople);
+    if (!src.length) { toast("먼저 친구 문제를 만들어 주세요"); peopleView(); return; }
+    quiz.list = src; quiz.idx = 0; quiz.right = 0; quiz.missed = 0;
+    quizRound();
+  };
+}
+function quizRound() {
+  stopTimer();
+  quiz.shown = 1; quiz.revealed = false; quiz.left = quiz.seconds;
+  const p = quiz.list[quiz.idx];
+  const hints = (p.hints || []).filter(Boolean);
+  const hasPhoto = !!p.photo;
+  const totalSteps = hasPhoto ? 4 : 1;
+  const R = 26, C = 2 * Math.PI * R;
+  $app.innerHTML = `
+    <div class="bar"><button class="back" id="back" aria-label="설정으로">←</button><h2>인물 퀴즈</h2><span class="pill">${quiz.idx + 1} / ${quiz.list.length}</span></div>
+    <div class="quizbox">
+      <div class="quizhead">
+        <span class="tag">${p.cat ? esc(CATS[p.cat]) + " · " : ""}누구일까요?</span>
+        <div class="timer" id="timer"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="${R}" fill="none" stroke="#d6cfb8" stroke-width="6"/><circle id="ring" cx="32" cy="32" r="${R}" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="0"/></svg><div class="t" id="tnum">${quiz.left}</div></div>
+      </div>
+      ${hasPhoto ? `<div class="photo"><img id="pimg" src="${p.photo}" alt="퀴즈 사진"></div>` : ""}
+      <ul class="hints" id="hints"></ul>
+      <div id="ans" aria-live="polite"></div>
+    </div>
+    <div id="ctrl"></div>`;
+  document.getElementById("back").onclick = quizSetup;
+  const draw = () => {
+    const step = Math.min(quiz.shown, totalSteps || 1);
+    if (hasPhoto) {
+      const img = document.getElementById("pimg");
+      const k = quiz.revealed ? 1 : step / (totalSteps + 1);
+      img.style.filter = quiz.revealed ? "none" : `blur(${Math.round(28 * (1 - k))}px) grayscale(${1 - k})`;
+      img.style.transform = quiz.revealed ? "none" : `scale(${(1.9 - k * .7).toFixed(2)})`;
+    }
+    document.getElementById("hints").innerHTML = hints.map((h, i) => `<li><span>${i + 1}</span>${esc(h)}</li>`).join("");
+    const more = quiz.shown < totalSteps && !quiz.revealed;
+    document.getElementById("ctrl").innerHTML = quiz.revealed
+      ? `<div class="row"><button class="btn mint" id="ok">맞혔어요</button><button class="btn" id="miss">아무도 못 맞힘</button></div>`
+      : `<div class="row">${hasPhoto ? `<button class="btn" id="more" ${more ? "" : "disabled"}>더 선명하게</button>` : ""}<button class="btn primary" id="reveal">정답 보기</button></div>`;
+    if (quiz.revealed) {
+      document.getElementById("ok").onclick = () => { quiz.right++; nextQ(); };
+      document.getElementById("miss").onclick = () => { quiz.missed++; nextQ(); };
+    } else {
+      const mb = document.getElementById("more");
+      if (mb) mb.onclick = () => { quiz.shown++; buzz(15); draw(); };
+      document.getElementById("reveal").onclick = reveal;
+    }
+  };
+  const reveal = (timeout) => {
+    stopTimer(); quiz.revealed = true; buzz([60, 40, 60]);
+    document.getElementById("ans").innerHTML = `<div class="answer"><small>${timeout === true ? "시간 끝! 정답은" : "정답은"}</small><strong>${esc(p.name)}</strong></div>
+      <div class="penalty">${timeout === true ? "아무도 못 맞혔다면 다 같이 한 잔 🍶" : "먼저 맞힌 사람 빼고 모두 한 잔 🍶"}</div>`;
+    draw();
+  };
+  draw();
+  const ring = document.getElementById("ring");
+  timerId = setInterval(() => {
+    quiz.left--;
+    document.getElementById("tnum").textContent = Math.max(quiz.left, 0);
+    ring.style.strokeDashoffset = (C * (1 - quiz.left / quiz.seconds)).toFixed(1);
+    document.getElementById("timer").classList.toggle("hurry", quiz.left <= 5);
+    // auto-open the next hint as time passes
+    const due = Math.min(totalSteps, 1 + Math.floor((quiz.seconds - quiz.left) / (quiz.seconds / Math.max(totalSteps, 1))));
+    if (due > quiz.shown) { quiz.shown = due; draw(); }
+    if (quiz.left <= 0) reveal(true);
+  }, 1000);
+}
+function nextQ() {
+  quiz.idx++;
+  if (quiz.idx >= quiz.list.length) {
+    stopTimer();
+    $app.innerHTML = `
+      <div class="bar"><button class="back" id="back" aria-label="처음으로">←</button><h2>인물 퀴즈 끝</h2></div>
+      <div class="quizbox" style="justify-content:center;text-align:center">
+        <div class="answer"><small>맞힌 문제</small><strong>${quiz.right} / ${quiz.list.length}</strong></div>
+        <div class="penalty">못 맞힌 문제 ${quiz.missed}개 · 모두 ${quiz.missed}잔 원샷?</div>
+      </div>
+      <button class="btn primary" id="again">다시 하기</button>`;
+    document.getElementById("back").onclick = home;
+    document.getElementById("again").onclick = quizSetup;
+    return;
+  }
+  quizRound();
+}
+
+/* ---------- custom people editor ---------- */
+function resizeImage(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const S = 480, s = Math.min(1, S / Math.max(img.width, img.height));
+        const c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        res(c.toDataURL("image/jpeg", .78));
+      };
+      img.onerror = rej; img.src = r.result;
+    };
+    r.onerror = rej; r.readAsDataURL(file);
+  });
+}
+function peopleView() {
+  stopTimer();
+  let photo = null;
+  $app.innerHTML = `
+    <div class="bar"><button class="back" id="back" aria-label="퀴즈 설정으로">←</button><h2>우리끼리 인물 퀴즈</h2></div>
+    <form class="panel" id="f">
+      <p>친구 어릴 적 사진, 확대한 얼굴 사진을 넣으면 재밌어요. 사진은 이 기기 브라우저에만 저장돼요.</p>
+      <label class="upload" for="ph"><input type="file" id="ph" accept="image/*"><span id="phPrev">📷</span><span id="phTxt">사진 고르기 (선택)</span></label>
+      <label class="f">정답 (이름)<input type="text" id="nm" maxlength="30" placeholder="예: 민수" required></label>
+      <label class="f">키워드 1<input type="text" id="h1" maxlength="60" placeholder="예: 우리 중에 제일 늦게 오는 사람"></label>
+      <label class="f">키워드 2<input type="text" id="h2" maxlength="60" placeholder="예: MBTI가 ENFP"></label>
+      <label class="f">키워드 3<input type="text" id="h3" maxlength="60" placeholder="예: 지난주에 머리 자름"></label>
+      <button class="btn primary" type="submit">문제 추가</button>
+    </form>
+    <div class="panel"><h3>만든 문제 ${customPeople.length}개</h3>
+      <div class="list">${customPeople.length ? customPeople.map((p, i) => `
+        <div class="item">${p.photo ? `<img src="${p.photo}" alt="">` : ""}<div class="txt"><b>${esc(p.name)}</b>${esc((p.hints || []).filter(Boolean).join(" · ") || "힌트 없음")}</div>
+        <button class="x" data-i="${i}" aria-label="삭제">✕</button></div>`).join("") : `<div class="empty">아직 없어요. 위에서 첫 문제를 만들어 보세요.</div>`}
+      </div>
+      ${customPeople.length ? `<button class="btn mint" id="play">이 문제로 시작</button>` : ""}
+    </div>`;
+  document.getElementById("back").onclick = quizSetup;
+  document.getElementById("ph").onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      photo = await resizeImage(f);
+      document.getElementById("phPrev").innerHTML = `<img src="${photo}" alt="고른 사진">`;
+      document.getElementById("phTxt").textContent = "사진 바꾸기";
+    } catch (err) { toast("이 사진은 열 수 없어요. 다른 사진을 골라 주세요"); }
+  };
+  document.getElementById("f").onsubmit = e => {
+    e.preventDefault();
+    const name = document.getElementById("nm").value.trim(); if (!name) return;
+    const hints = ["h1", "h2", "h3"].map(id => document.getElementById(id).value.trim()).filter(Boolean);
+    if (!photo && !hints.length) { toast("사진이나 힌트를 하나 이상 넣어 주세요"); return; }
+    customPeople.push({ name, hints, photo });
+    if (!store.set("hp_people", customPeople)) toast("저장 공간이 부족해 새로고침하면 사라질 수 있어요");
+    else toast(`'${name}' 문제를 추가했어요`);
+    peopleView();
+  };
+  $app.querySelectorAll(".x").forEach(b => b.onclick = () => { customPeople.splice(+b.dataset.i, 1); store.set("hp_people", customPeople); peopleView(); });
+  const play = document.getElementById("play");
+  if (play) play.onclick = () => { quiz.source = "custom"; quiz.list = shuffle(customPeople); quiz.idx = 0; quiz.right = 0; quiz.missed = 0; quizRound(); };
+}
+
+home();
+if ("serviceWorker" in navigator) { window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); }); }
+</script>
+
+</body>
+</html>
